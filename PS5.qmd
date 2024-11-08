@@ -1,7 +1,7 @@
 ---
-title: "title"
-author: "author"
-date: "date"
+title: "30538 Problem Set 5: Web Scraping"
+author: "Boya Lin & Zidan Kong"
+date: "11/06/2024"
 format: 
   pdf:
     include-in-header: 
@@ -26,12 +26,12 @@ output:
 ## Submission Steps (10 pts)
 1. This problem set is a paired problem set.
 2. Play paper, scissors, rock to determine who goes first. Call that person *Partner 1*.
-    - Partner 1 (name and cnet ID):
-    - Partner 2 (name and cnet ID):
+    - Partner 1 (name and cnet ID): Boya Lin, boya1
+    - Partner 2 (name and cnet ID): Zidan Kong, zidank
 3. Partner 1 will accept the `ps5` and then share the link it creates with their partner. You can only share it with one partner so you will not be able to change it after your partner has accepted. 
-4. "This submission is our work alone and complies with the 30538 integrity policy." Add your initials to indicate your agreement: \*\*\_\_\*\* \*\*\_\_\*\*
+4. "This submission is our work alone and complies with the 30538 integrity policy." Add your initials to indicate your agreement: \*\*BL\*\* \*\*ZK\*\*
 5. "I have uploaded the names of anyone else other than my partner and I worked with on the problem set **[here](https://docs.google.com/forms/d/185usrCREQaUbvAXpWhChkjghdGgmAZXA3lPWpXLLsts/edit)**"  (1 point)
-6. Late coins used this pset: \*\*\_\_\*\* Late coins left after submission: \*\*\_\_\*\*
+6. Late coins used this pset: \*\*1\*\* Late coins left after submission: \*\*1\*\*
 7. Knit your `ps5.qmd` to an PDF file to make `ps5.pdf`, 
     * The PDF should not be more than 25 pages. Use `head()` and re-size figures when appropriate. 
 8. (Partner 1): push  `ps5.qmd` and `ps5.pdf` to your github repo.
@@ -44,6 +44,8 @@ output:
 import pandas as pd
 import altair as alt
 import time
+import requests
+from bs4 import BeautifulSoup
 
 import warnings 
 warnings.filterwarnings('ignore')
@@ -56,14 +58,75 @@ alt.renderers.enable("png")
 ### 1. Scraping (PARTNER 1)
 
 ```{python}
+url = 'https://oig.hhs.gov/fraud/enforcement/'
+# make a get request
+response = requests.get(url)
+# convert into a soup object
+soup = BeautifulSoup(response.text, 'lxml')
 
+# initialize list to store data
+titles = []
+dates = []
+categories = []
+links = []
+
+for action in soup.find_all('li', class_='usa-card card--list pep-card--minimal mobile:grid-col-12'):
+    title_tag = action.find('h2', class_='usa-card__heading')
+    # Use 'N/A' if title not found
+    title = title_tag.text.strip() if title_tag else 'N/A'
+    titles.append(title)
+
+    date_tag = action.find('span', class_='text-base-dark padding-right-105')
+    date = date_tag.text.strip() if date_tag else 'N/A'
+    dates.append(date)
+
+    category_tag = action.find(
+        'li', class_='display-inline-block usa-tag text-no-lowercase text-base-darkest bg-base-lightest margin-right-1')
+    category = category_tag.text.strip() if category_tag else 'N/A'
+    categories.append(category)
+
+    link_tag = action.find('a')
+    link = link_tag['href'] if link_tag else None
+    full_link = f'https://oig.hhs.gov{link}' if link and link.startswith(
+        '/') else link
+    links.append(full_link or 'N/A')
+
+# create a DataFrame with the scraped data
+data = pd.DataFrame({
+    'Title': titles,
+    'Date': dates,
+    'Category': categories,
+    'Link': links
+})
+
+# display the head of the DataFrame
+print(data.head())
 ```
 
-  
+
 ### 2. Crawling (PARTNER 1)
 
 ```{python}
+# initialize list to store agency
+agencies = []
 
+# iterate over each enforcement action link
+for i, link in enumerate(links):
+    action_response = requests.get(link)
+    action_soup = BeautifulSoup(action_response.text, 'lxml')
+
+    # locate the 'Agency:' label and extract the agency name by accessing the next sibling
+    agency_tag = action_soup.find('span', text='Agency:')
+    if agency_tag:
+        agency_text = agency_tag.find_next_sibling(text=True).strip('" ')  # remove quotes and whitespace
+    else:
+        agency_text = 'N/A'
+    
+    agencies.append(agency_text)
+    time.sleep(1)
+
+data['Agency'] = agencies
+print(data.head())
 ```
 
 ## Step 2: Making the scraper dynamic
