@@ -44,6 +44,7 @@ output:
 import pandas as pd
 import altair as alt
 import time
+from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 
@@ -111,7 +112,7 @@ print(data.head())
 agencies = []
 
 # iterate over each enforcement action link
-for i, link in enumerate(links):
+for link in links:
     action_response = requests.get(link)
     action_soup = BeautifulSoup(action_response.text, 'lxml')
 
@@ -221,23 +222,22 @@ Define function enforcement_scraper(month, year):
 * b. Create Dynamic Scraper (PARTNER 2)
 
 ```{python}
-from datetime import datetime
 from urllib.parse import urljoin
 
 def enforcement_scraper(month, year):
-    # Check if the input year is valid
+    # check if the input year is valid
     if year < 2013:
-        print("Please restrict to year >= 2013.")
+        print('Please restrict to year >= 2013.')
         return None
 
-    # Create lists to store data
+    # create empty lists to store data
     titles = []
     dates = []
     categories = []
     links = []
     agencies = []
 
-    # Define the base URL
+    # define the base URL
     url = "https://oig.hhs.gov/fraud/enforcement/"
 
     # want date to filter actions date
@@ -269,8 +269,8 @@ def enforcement_scraper(month, year):
 
             # Get the date and filter based on want_date
             try:
-                action_date = datetime.strptime(date_text, '%B %d, %Y')
-                if action_date < target_date:
+                action_date = datetime.strptime(date, '%B %d, %Y')
+                if action_date < want_date:
                     continue 
             except ValueError:
                 continue  
@@ -318,11 +318,28 @@ def enforcement_scraper(month, year):
     return data
 ```
 
+```{python}
+# collect the enforcement actions since January 2023
+data_2023 = enforcement_scraper(1, 2023)
+
+num_actions_2023 = len(data_2023)
+print(f'Total enforcement actions from January 2023: {num_actions_2023}')
+
+earliest_action_2023 = data_2023.sort_values(by='Date').iloc[0]
+print(f'Earliest enforcement action scraped: {earliest_action_2023}')
+```
+
 * c. Test Partner's Code (PARTNER 1)
 
 ```{python}
-# Run the function for a specific month and year, e.g., May 2023
-run_df = =enforcement_scraper(5, 2023)
+# collect the enforcement actions since January 2021
+data_2021 = enforcement_scraper(1, 2021)
+
+num_actions_2021 = len(data_2021)
+print(f'Total enforcement actions from January 2021: {num_actions_2021}')
+
+earliest_action_2021 = data_2021.sort_values(by='Date').iloc[0]
+print(f'Earliest enforcement action scraped: {earliest_action_2021}')
 ```
 
 ## Step 3: Plot data based on scraped data
