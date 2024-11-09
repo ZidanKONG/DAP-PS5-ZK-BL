@@ -118,7 +118,7 @@ for i, link in enumerate(links):
     # locate the 'Agency:' label and extract the agency name by accessing the next sibling
     agency_tag = action_soup.find('span', text='Agency:')
     if agency_tag:
-        agency_text = agency_tag.find_next_sibling(text=True).strip('" ')  # remove quotes and whitespace
+        agency_text = agency_tag.find_next_sibling(text=True).strip('" ').split(';')[-1].strip()
     else:
         agency_text = 'N/A'
     
