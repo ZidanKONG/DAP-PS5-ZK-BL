@@ -566,53 +566,49 @@ plt.show()
 ### 2. Map by District (PARTNER 2)
 
 ```{python}
-# Remove rows where 'Agency' is NaN
+us_state = gpd.read_file('/Users/kongzidan/Documents/GitHub/DAP-PS5-ZK-BL/cb_2018_us_state_500k/cb_2018_us_state_500k.shp')
+
+us_attorney = gpd.read_file('/Users/kongzidan/Documents/GitHub/DAP-PS5-ZK-BL/US Attorney Districts Shapefile simplified_20241109/geo_export_73b461cc-c808-4101-b111-3755d4c22267.shp')
+
 enforcement_actions_2021 = enforcement_actions_2021[enforcement_actions_2021['Agency'].notna()]
 
-enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace(' †††', '').str.strip()
+# extract attorney data for groupby and merge
+us_attorney_actions = enforcement_actions_2021[enforcement_actions_2021['Agency'].str.contains("U.S. Attorney's Office")]
+us_attorney_actions['State'] = us_attorney_actions['Agency'].str.split("U.S. Attorney's Office,").str[-1].str.strip()
+#clean and structure cells
+us_attorney_actions['State'] = us_attorney_actions['State'].str.replace(' †††', '')
+us_attorney_actions['State'] = us_attorney_actions['State'].str.replace(' ††', '')
+us_attorney_actions['State'] = us_attorney_actions['State'].str.replace('District of Idaho Boise', 'District of Idaho')
 
-enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace(' ††', '').str.strip()
-
-enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace('District of Idaho Boise', 'District of Idaho').str.strip()
-
-# Replace "District of District of Columbia" with "District of Columbia" in the 'judicial_d' column
+# clean and structure cells for merge
 us_attorney['judicial_d'] = us_attorney['judicial_d'].str.replace(
     'District of District of Columbia', 'District of Columbia', regex=False
 )
+# group by to get action counts
+us_attorney_actions = us_attorney_actions.groupby('State').size().reset_index(name='Enforcement Actions')
 
-# Filter for U.S. Attorney's Office actions and extract state names
-us_attorney_actions = enforcement_actions_2021[enforcement_actions_2021['Agency'].str.contains("U.S. Attorney's Office")]
-us_attorney_actions['State'] = us_attorney_actions['Agency'].str.split("U.S. Attorney's Office,").str[-1].str.strip()
-
-
-# Filter for State-level actions and extract state names
-state_actions = enforcement_actions_2021[enforcement_actions_2021['Agency'].str.contains("State of")]
-state_actions['State'] = state_actions['Agency'].str.split("State of").str[-1].str.strip()
-
-# Select only the 'judicial_d' and 'geometry' columns from us_attorney
+# only need 'judicial_d' and 'geometry' columns from us_attorney
 us_attorney_filtered = us_attorney[['judicial_d', 'geometry']]
 
-# Merge U.S. Attorney's Office actions with the filtered us_attorney GeoDataFrame
+# merge data
 us_attorney_actions_merged = us_attorney_actions.merge(us_attorney_filtered, left_on='State', right_on='judicial_d', how='left')
 
-# Select only the 'NAME' and 'geometry' columns from us_state
-us_state_filtered = us_state[['NAME', 'geometry']]
-
-# Merge State-level actions with the us_state GeoDataFrame
-state_actions_merged = state_actions.merge(us_state_filtered, left_on='State', right_on='NAME', how='left')
-
-# Plot U.S. Attorney's Office enforcement actions
-fig, ax = plt.subplots(1, 2, figsize=(18, 10))
-
-# U.S. Attorney's Office choropleth
-us_attorney_actions_merged.plot(column='Enforcement Actions', ax=ax[0], legend=True,
-                                legend_kwds={'label': "Number of Enforcement Actions (Federal)",
-                                             'orientation': "horizontal"},
-                                cmap='coolwarm')
-ax[0].set_title('U.S. Attorney\'s Office Enforcement Actions', fontsize=16)
-ax[0].set_axis_off()
-
 ```
+```{python}
+#turn to geodataframe
+us_attorney_actions_merged = gpd.GeoDataFrame(us_attorney_actions_merged, geometry='geometry')
+#plot
+fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+us_attorney_actions_merged.plot(column='Enforcement Actions', ax=ax, legend=True, cmap='Purples')
+ax.set_title('Number of Enforcement Actions by District',
+             fontdict={'fontsize': '12'})
+ax.set_xlim(-130, -65)  # Longitude limits for the contiguous U.S.
+ax.set_ylim(24, 50)
+plt.show()
+```
+
+Reference chatgpt for Cannot mask with non-boolean array containing NA / NaN values, and set limits when plotting.
+
 
 ## Extra Credit
 
