@@ -75,13 +75,15 @@ dates = []
 categories = []
 links = []
 
-for action in soup.find_all('li', class_='usa-card card--list pep-card--minimal mobile:grid-col-12'):
+for action in soup.find_all(
+        'li', class_='usa-card card--list pep-card--minimal mobile:grid-col-12'):
     title_tag = action.find('h2', class_='usa-card__heading')
-    # Use 'N/A' if title not found
+    # extract text from list elements and use 'N/A' if title not found
     title = title_tag.text.strip() if title_tag else 'N/A'
     titles.append(title)
 
-    date_tag = action.find('span', class_='text-base-dark padding-right-105')
+    date_tag = action.find(
+        'span', class_='text-base-dark padding-right-105')
     date = date_tag.text.strip() if date_tag else 'N/A'
     dates.append(date)
 
@@ -97,8 +99,8 @@ for action in soup.find_all('li', class_='usa-card card--list pep-card--minimal 
         link = 'N/A'
     links.append(link)
 
-# create a DataFrame with the scraped data
-data = pd.DataFrame({
+# create a DataFrame
+hhs_data = pd.DataFrame({
     'Title': titles,
     'Date': dates,
     'Category': categories,
@@ -106,7 +108,10 @@ data = pd.DataFrame({
 })
 
 # display the head of the DataFrame
-print(data.head())
+print(hhs_data.head())
+
+# ChatGPT reference for extracting texts from list elements and 
+# aligning list length (by handeling NAs) to create DataFrame
 ```
 
 
@@ -121,18 +126,23 @@ for link in links:
     action_response = requests.get(link)
     action_soup = BeautifulSoup(action_response.text, 'lxml')
 
-    # locate the 'Agency:' label and extract the agency name by accessing the next sibling
+    # locate the 'Agency:' label and extract the agency name
     agency_tag = action_soup.find('span', text='Agency:')
     if agency_tag:
-        agency_text = agency_tag.find_next_sibling(text=True).strip('" ').split(';')[-1].strip()
+        agency_text = agency_tag.find_next_sibling(
+            text=True).strip('" ').split(';')[-1].strip()
     else:
         agency_text = 'N/A'
-    
+
     agencies.append(agency_text)
     time.sleep(1)
 
-data['Agency'] = agencies
-print(data.head())
+# add Agency column in DataFrame and display the head
+hhs_data['Agency'] = agencies
+print(hhs_data.head())
+
+# ChatGPT reference for extracting texts from the next cell besides the "Agency:" 
+# text and removing any contents before ";" symbol
 ```
 
 ## Step 2: Making the scraper dynamic
@@ -226,7 +236,7 @@ Define function enforcement_scraper(month, year):
 def enforcement_scraper(month, year):
     # check if the input year is valid
     if year < 2013:
-        print("Please restrict to year >= 2013.")
+        print('Please restrict to year >= 2013.')
         return None
 
     # initialize lists to store data
@@ -237,7 +247,7 @@ def enforcement_scraper(month, year):
     agencies = []
 
     # define the base URL
-    url = "https://oig.hhs.gov/fraud/enforcement/"
+    url = 'https://oig.hhs.gov/fraud/enforcement/'
     target_date = datetime(year, month, 1)
 
     # set up a requests session for efficiency
@@ -247,13 +257,14 @@ def enforcement_scraper(month, year):
     page_count = 0
     while url:
         page_count += 1
-        print(f"Fetching page {page_count}...")  # print the current page number
+        print(f'Fetching page {page_count}...')  # print current page number
 
         response = session.get(url)
-        soup = BeautifulSoup(response.text, "lxml")
+        soup = BeautifulSoup(response.text, 'lxml')
 
         # find all actions on the page
-        actions = soup.find_all("li", class_="usa-card card--list pep-card--minimal mobile:grid-col-12")
+        actions = soup.find_all(
+            'li', class_='usa-card card--list pep-card--minimal mobile:grid-col-12')
         if not actions:
             break
 
@@ -262,24 +273,26 @@ def enforcement_scraper(month, year):
 
         for action in actions:
             # extract title, date, category, and link for each action
-            title_tag = action.find("h2", class_="usa-card__heading")
-            title = title_tag.text.strip() if title_tag else "N/A"
+            title_tag = action.find(
+                'h2', class_='usa-card__heading')
+            title = title_tag.text.strip() if title_tag else 'N/A'
 
-            date_tag = action.find("span", class_="text-base-dark padding-right-105")
-            date_text = date_tag.text.strip() if date_tag else "N/A"
+            date_tag = action.find(
+                'span', class_='text-base-dark padding-right-105')
+            date_text = date_tag.text.strip() if date_tag else 'N/A'
 
             category_tag = action.find(
-                "li", class_="display-inline-block usa-tag text-no-lowercase text-base-darkest bg-base-lightest margin-right-1"
-            )
-            category = category_tag.text.strip() if category_tag else "N/A"
+                'li', class_='display-inline-block usa-tag text-no-lowercase text-base-darkest bg-base-lightest margin-right-1')
+            category = category_tag.text.strip() if category_tag else 'N/A'
 
-            link_tag = action.find("a")
-            link = link_tag["href"] if link_tag else None
-            full_link = f'https://oig.hhs.gov{link}' if link and link.startswith("/") else link
+            link_tag = action.find('a')
+            link = link_tag['href'] if link_tag else None
+            full_link = f'https://oig.hhs.gov{link}' if link and link.startswith(
+                '/') else link
 
             # parse the action date and filter based on target_date
             try:
-                action_date = datetime.strptime(date_text, "%B %d, %Y")
+                action_date = datetime.strptime(date_text, '%B %d, %Y')
                 if action_date < target_date:
                     continue  # skip actions before the target date
                 else:
@@ -291,16 +304,17 @@ def enforcement_scraper(month, year):
             titles.append(title)
             dates.append(date_text)
             categories.append(category)
-            links.append(full_link or "N/A")
+            links.append(full_link or 'N/A')
 
             # if agency details are critical, make an additional request here
             if full_link:
                 action_response = session.get(full_link)
-                action_soup = BeautifulSoup(action_response.text, "lxml")
-                agency_tag = action_soup.find("span", string="Agency:")
+                action_soup = BeautifulSoup(action_response.text, 'lxml')
+                agency_tag = action_soup.find('span', string='Agency:')
                 agency_text = (
-                    agency_tag.find_next_sibling(string=True).strip('" ').split(":")[-1].strip()
-                    if agency_tag else "N/A"
+                    agency_tag.find_next_sibling(string=True).strip(
+                        '" ').split(':')[-1].strip()
+                    if agency_tag else 'N/A'
                 )
                 agencies.append(agency_text)
 
@@ -309,34 +323,36 @@ def enforcement_scraper(month, year):
 
         # check if this page had no relevant actions after the target date
         if not page_has_relevant_actions:
-            print("No relevant actions found on this page. Ending scraping.")
+            print('No relevant actions found on this page. Ending scraping.')
             break
 
         # find the link to the next page
-        next_page = soup.find("a", class_="pagination-next")
+        next_page = soup.find('a', class_='pagination-next')
         if next_page:
-            next_link = next_page["href"]
+            next_link = next_page['href']
             url = urljoin(url, next_link)
-            print("Moving to next page...")
+            print('Moving to next page...')
         else:
-            print("No next page found. Ending scraping.")
+            print('No next page found. Ending scraping.')
             break
 
     # create a DataFrame with the collected data
     data = pd.DataFrame({
-        "Title": titles,
-        "Date": dates,
-        "Category": categories,
-        "Link": links,
-        "Agency": agencies
+        'Title': titles,
+        'Date': dates,
+        'Category': categories,
+        'Link': links,
+        'Agency': agencies
     })
 
     # save the DataFrame to a CSV file
-    filename = f"enforcement_actions_{year}_{month}.csv"
+    filename = f'enforcement_actions_{year}_{month}.csv'
     data.to_csv(filename, index=False)
-    print(f"Data saved to {filename}")
+    print(f'Data saved to {filename}')
 
     return data
+
+# ChatGPT reference for setting target date and looping through different pages
 ```
 
 
@@ -345,9 +361,9 @@ def enforcement_scraper(month, year):
 data_2023 = enforcement_scraper(1, 2023)
 
 num_actions_2023 = len(data_2023)
-print(f'Total enforcement actions from January 2023: {num_actions_2023}')
+print(f'Total number of enforcement actions from January 2023: {num_actions_2023}')
 earliest_action_2023 = data_2023.sort_values(by='Date').iloc[0]
-print(f'Earliest enforcement action scraped: {earliest_action_2023}')
+print(f'Details of earliest enforcement action scraped: {earliest_action_2023}')
 ```
 
 * c. Test Partner's Code (PARTNER 1)
@@ -357,9 +373,9 @@ print(f'Earliest enforcement action scraped: {earliest_action_2023}')
 data_2021 = enforcement_scraper(1, 2021)
 
 num_actions_2021 = len(data_2021)
-print(f'Total enforcement actions from January 2021: {num_actions_2021}')
+print(f'Total number of enforcement actions from January 2021: {num_actions_2021}')
 earliest_action_2021 = data_2021.sort_values(by='Date').iloc[0]
-print(f'Earliest enforcement action scraped: {earliest_action_2021}')
+print(f'Details of earliest enforcement action scraped: {earliest_action_2021}')
 ```
 
 ## Step 3: Plot data based on scraped data
@@ -367,25 +383,28 @@ print(f'Earliest enforcement action scraped: {earliest_action_2021}')
 ### 1. Plot the number of enforcement actions over time (PARTNER 2)
 
 ```{python}
-enforcement_actions_2021 = pd.read_csv('enforcement_actions_2021_1.csv') 
+enforcement_actions_2021 = pd.read_csv('enforcement_actions_2021_1.csv')
 
 # convert to datetime format
-enforcement_actions_2021['Date'] = pd.to_datetime(enforcement_actions_2021['Date'], format='%B %d, %Y')
+enforcement_actions_2021['Date'] = pd.to_datetime(
+    enforcement_actions_2021['Date'], format='%B %d, %Y')
 
 # extract 'Year-Month' for grouping
-enforcement_actions_2021['Year-Month'] = enforcement_actions_2021['Date'].dt.to_period('M')
+enforcement_actions_2021['Year-Month'] = enforcement_actions_2021[
+    'Date'].dt.to_period('M')
 
 # convert 'Year-Month' to string for Altair compatibility
-enforcement_actions_2021['Year-Month'] = enforcement_actions_2021['Year-Month'].astype(str)
+enforcement_actions_2021['Year-Month'] = enforcement_actions_2021[
+    'Year-Month'].astype(str)
 
-# aggregate by Year-Month and count the number of enforcement actions
-enforcement_counts = enforcement_actions_2021.groupby('Year-Month').size().reset_index(name='Enforcement Actions')
+# aggregate by Year-Month and count
+enforcement_counts = enforcement_actions_2021.groupby(
+    'Year-Month').size().reset_index(name='Enforcement Actions')
 
 # plot the data using Altair
 chart = alt.Chart(enforcement_counts).mark_line().encode(
-    x=alt.X('Year-Month:T', axis=alt.Axis(format='%Y-%m', title='Date')),  # Month-Year format
-    y=alt.Y('Enforcement Actions:Q', title='Number of Enforcement Actions'),
-    tooltip=['Year-Month:T', 'Enforcement Actions:Q']
+    x=alt.X('Year-Month:T', axis=alt.Axis(format='%Y-%m', title='Year-Month')),
+    y=alt.Y('Enforcement Actions:Q', title='Number of Enforcement Actions')
 ).properties(
     title='Number of Enforcement Actions Over Time (Since January 2021)',
     width=500,
@@ -393,6 +412,8 @@ chart = alt.Chart(enforcement_counts).mark_line().encode(
 )
 
 chart.show()
+
+# ChatGPT reference for changing date format for "Novembe, 2024"
 ```
 
 
@@ -401,20 +422,21 @@ chart.show()
 * based on "Criminal and Civil Actions" vs. "State Enforcement Agencies"
 
 ```{python}
-#filter data
-enforcement_2category = enforcement_actions_2021[enforcement_actions_2021['Category'].isin(['Criminal and Civil Actions', 'State Enforcement Agencies'])]
+# filter data
+enforcement_2category = enforcement_actions_2021[enforcement_actions_2021[
+    'Category'].isin(['Criminal and Civil Actions', 'State Enforcement Agencies'])]
 
-# Count the occurrences of each Category by Date
-enforcement_2category = enforcement_2category.groupby(['Year-Month', 'Category']).size().reset_index(name='Count')
+# count the occurrences of each Category by Year-Month
+enforcement_2category = enforcement_2category.groupby(
+    ['Year-Month', 'Category']).size().reset_index(name='Count')
 
-# Create the Altair line chart
+# plot the data using Altair
 chart_2 = alt.Chart(enforcement_2category).mark_line().encode(
-    x=alt.X('Year-Month:T', axis=alt.Axis(format='%Y-%m', title='Date')),
-    y=alt.Y('Count:Q', title='Counts'),
-    color='Category:N',
-    tooltip=['Year-Month:T', 'Category:N', 'Count:Q']
+    x=alt.X('Year-Month:T', axis=alt.Axis(format='%Y-%m', title='Year-Month')),
+    y=alt.Y('Count:Q', title='Number of Enforcement Actions'),
+    color='Category:N'
 ).properties(
-    title='Enforcement Actions Over Time by 2 Categories',
+    title='Number of Enforcement Actions Over Time by 2 Categories',
     width=500,
     height=300
 )
@@ -426,34 +448,39 @@ chart_2.show()
 
 ```{python}
 # filter to "Criminal and Civil Actions" category
-criminal_civil_actions = enforcement_actions_2021[enforcement_actions_2021['Category'] == 'Criminal and Civil Actions'].copy()
+criminal_civil_actions = enforcement_actions_2021[enforcement_actions_2021[
+    'Category'] == 'Criminal and Civil Actions'].copy()
 
-# Define function to categorize actions based on the 'Title' column
+# define function to categorize actions based on the 'Title' column
 def categorize_topic(title):
-    title_lower = title.lower()  
-    if "healthcare" in title_lower or "health" in title_lower or "medicare" in title_lower or "medicaid" in title_lower:
-        return "Health Care Fraud"
-    elif "bank" in title_lower or "financial" in title_lower:
-        return "Financial Fraud"
-    elif "drug" in title_lower or "drugs" in title_lower or 'oxycodone' in title_lower or 'controlled substances' in title_lower:
-        return "Drug Enforcement"
-    elif "conspiracy" in title_lower or "bribery" in title_lower or "corruption" in title_lower:
+    """ function to categorize topics within Criminal and Civial Actions category """
+    title_lower = title.lower()
+    if 'healthcare' in title_lower or 'health' in title_lower or 'medicare' in title_lower or 'medicaid' in title_lower:
+        return 'Health Care Fraud'
+    elif 'bank' in title_lower or 'financial' in title_lower:
+        return 'Financial Fraud'
+    elif 'drug' in title_lower or 'drugs' in title_lower or 'controlled substances' in title_lower or 'oxycodone' in title_lower:
+        return 'Drug Enforcement'
+    elif 'conspiracy' in title_lower or 'bribery' in title_lower or 'corruption' in title_lower:
         return "Bribery/Corruption"
     else:
         return "Other"
 
-# Apply the categorization function to each row of the 'Title' column
-criminal_civil_actions['Topic'] = criminal_civil_actions['Title'].apply(categorize_topic)
+# apply the categorization function to each row of the 'Title' column
+criminal_civil_actions['Topic'] = criminal_civil_actions['Title'].apply(
+    categorize_topic)
 
-# Aggregate by Year-Month and Topic
-enforcement_counts = criminal_civil_actions.groupby(['Year-Month', 'Topic']).size().reset_index(name='Number of Enforcement Actions')
+# aggregate by Year-Month and Topic
+enforcement_counts = criminal_civil_actions.groupby(
+    ['Year-Month', 'Topic']).size().reset_index(name='Count')
 
-# Plot the data using Altair
+# plot the data using Altair
 chart_3 = alt.Chart(enforcement_counts).mark_line().encode(
-    x=alt.X('Year-Month:T', axis=alt.Axis(format='%Y-%m', title='Date')),  # Month-Year format
-    y=alt.Y('Number of Enforcement Actions:Q', title='Number of Enforcement Actions'),
+    x=alt.X('Year-Month:T', axis=alt.Axis(format='%Y-%m',
+            title='Date')),  
+    y=alt.Y('Count:Q', title='Number of Enforcement Actions'),
     color='Topic:N',
-    tooltip=['Year-Month:T', 'Topic:N', 'Number of Enforcement Actions:Q']
+    tooltip=['Year-Month:T', 'Topic:N', 'Count:Q']
 ).properties(
     title='Number of Criminal and Civil Enforcement Actions by Topics Over Time',
     width=500,
@@ -468,146 +495,98 @@ chart_3.show()
 ### 1. Map by State (PARTNER 1)
 
 ```{python}
-import geopandas as gpd
-import pandas as pd
-import matplotlib.pyplot as plt
+us_state = gpd.read_file(
+    '/Users/boyalin/Documents/GitHub/ppha30538_ps/DAP-PS5-ZK-BL/cb_2018_us_state_500k/cb_2018_us_state_500k.shp')
+us_attorney = gpd.read_file(
+    '/Users/boyalin/Documents/GitHub/ppha30538_ps/DAP-PS5-ZK-BL/US Attorney Districts Shapefile simplified_20241109/geo_export_73b461cc-c808-4101-b111-3755d4c22267.shp')
 
-# Load the shapefiles
-us_state = gpd.read_file('/Users/boyalin/Documents/GitHub/ppha30538_ps/DAP-PS5-ZK-BL/cb_2018_us_state_500k/cb_2018_us_state_500k.shp')
-us_attorney = gpd.read_file('/Users/boyalin/Documents/GitHub/ppha30538_ps/DAP-PS5-ZK-BL/US Attorney Districts Shapefile simplified_20241109/geo_export_73b461cc-c808-4101-b111-3755d4c22267.shp')
-
-# Clean up the 'Agency' column in enforcement_actions_2021
-enforcement_actions_2021 = enforcement_actions_2021[enforcement_actions_2021['Agency'].notna()]
-enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace(' †††', '').str.strip()
-enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace(' ††', '').str.strip()
-enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace('District of Idaho Boise', 'District of Idaho').str.strip()
-
-# Filter for State-level actions and extract state names
-state_actions = enforcement_actions_2021[enforcement_actions_2021['Agency'].str.contains("State of")]
-state_actions['State'] = state_actions['Agency'].str.split("State of").str[-1].str.strip()
-
-# Aggregate by state
-state_enforcement_counts = state_actions.groupby('State').size().reset_index(name='Enforcement Actions')
-
-# Strip any leading/trailing spaces from both 'State' and 'NAME' columns
-state_enforcement_counts['State'] = state_enforcement_counts['State'].str.strip()
-us_state['NAME'] = us_state['NAME'].str.strip()
-
-# Select only the 'NAME' and 'geometry' columns from us_state
-us_state_filtered = us_state[['NAME', 'geometry']]
-
-# Merge the enforcement counts with the state geometries
-state_actions_merged = state_enforcement_counts.merge(us_state_filtered, left_on='State', right_on='NAME', how='left')
-
-# Check if merge worked correctly
-print("Merged Data Check:")
-print(state_actions_merged.head())
-
-# Plotting the choropleth
-fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-
-# Plot state-level enforcement actions as a choropleth map
-state_actions_merged.plot(column='Enforcement Actions', 
-                          cmap='coolwarm', ax=ax, 
-                          legend=True)
-
-# Set title and remove axes
-ax.set_title('State-level Enforcement Actions (2021)', fontsize=16)
-ax.set_axis_off()
-
-# Show the plot
-plt.show()
-
-```
-
-```{python}
-us_state = gpd.read_file('/Users/boyalin/Documents/GitHub/ppha30538_ps/DAP-PS5-ZK-BL/cb_2018_us_state_500k/cb_2018_us_state_500k.shp')
-
-us_attorney = gpd.read_file('/Users/boyalin/Documents/GitHub/ppha30538_ps/DAP-PS5-ZK-BL/US Attorney Districts Shapefile simplified_20241109/geo_export_73b461cc-c808-4101-b111-3755d4c22267.shp')
-
-# clean up the 'Agency' column in enforcement_actions_2021
-# remove rows where 'Agency' is NaN
-enforcement_actions_2021 = enforcement_actions_2021[enforcement_actions_2021['Agency'].notna()]
-enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace(' †††', '').str.strip()
-enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace(' ††', '').str.strip()
-enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace('District of Idaho Boise', 'District of Idaho').str.strip()
+# handeling NAs in the 'Agency' column
+enforcement_actions_2021 = enforcement_actions_2021[enforcement_actions_2021[
+    'Agency'].notna()]
 
 # filter for State-level actions and extract state names
-state_actions = enforcement_actions_2021[enforcement_actions_2021['Agency'].str.contains("State of")]
-state_actions['State'] = state_actions['Agency'].str.split("State of").str[-1].str.strip()
+state_actions = enforcement_actions_2021[enforcement_actions_2021[
+    'Agency'].str.contains('State of')]
+state_actions['State'] = state_actions['Agency'].str.split(
+    'State of').str[-1].str.strip()
 
 # aggregate by state
-state_enforcement_counts = state_actions.groupby('State').size().reset_index(name='Enforcement Actions')
+state_enforcement_counts = state_actions.groupby(
+    'State').size().reset_index(name='Enforcement Actions')
 
 # select only the 'NAME' and 'geometry' columns from us_state
 us_state_filtered = us_state[['NAME', 'geometry']]
 
 # merge the enforcement counts with the state geometries
-state_actions_merged = state_enforcement_counts.merge(us_state_filtered, left_on='State', right_on='NAME', how='left')
+state_actions_merged = state_enforcement_counts.merge(
+    us_state_filtered, left_on='State', right_on='NAME', how='left')
+state_actions_merged = gpd.GeoDataFrame(
+    state_actions_merged, geometry='geometry')
 
+# plot the choropleth
 fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-state_actions_merged.plot(column='counts', ax=ax, legend=True)
-ax.set_title('Number of Hospitals per ZIP Code in Texas (2016)',
-             fontdict={'fontsize': '12'})
-plt.show()
-```
-
-```{python}
-state_actions_merged = gpd.GeoDataFrame(state_actions_merged, geometry='geometry')
-
-fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-state_actions_merged.plot(column='Enforcement Actions', ax=ax, legend=True, cmap='Purples')
+state_actions_merged.plot(column='Enforcement Actions',
+                          ax=ax, legend=True, cmap='Purples')
 ax.set_title('Number of Enforcement Actions by State',
              fontdict={'fontsize': '12'})
 plt.show()
+
+# ChatGPT reference for ValueError: Cannot mask with non-boolean array
+# containing NA / NaN values
+# ChatGPT reference for extracting contents after the key word 'State of'
 ```
 
 
 ### 2. Map by District (PARTNER 2)
 
 ```{python}
-us_state = gpd.read_file('/Users/kongzidan/Documents/GitHub/DAP-PS5-ZK-BL/cb_2018_us_state_500k/cb_2018_us_state_500k.shp')
-
-us_attorney = gpd.read_file('/Users/kongzidan/Documents/GitHub/DAP-PS5-ZK-BL/US Attorney Districts Shapefile simplified_20241109/geo_export_73b461cc-c808-4101-b111-3755d4c22267.shp')
-
-enforcement_actions_2021 = enforcement_actions_2021[enforcement_actions_2021['Agency'].notna()]
-
 # extract attorney data for groupby and merge
-us_attorney_actions = enforcement_actions_2021[enforcement_actions_2021['Agency'].str.contains("U.S. Attorney's Office")]
-us_attorney_actions['State'] = us_attorney_actions['Agency'].str.split("U.S. Attorney's Office,").str[-1].str.strip()
-#clean and structure cells
-us_attorney_actions['State'] = us_attorney_actions['State'].str.replace(' †††', '')
-us_attorney_actions['State'] = us_attorney_actions['State'].str.replace(' ††', '')
-us_attorney_actions['State'] = us_attorney_actions['State'].str.replace('District of Idaho Boise', 'District of Idaho')
+us_attorney_actions = enforcement_actions_2021[enforcement_actions_2021[
+    'Agency'].str.contains("U.S. Attorney's Office")]
+us_attorney_actions['State'] = us_attorney_actions['Agency'].str.split(
+    "U.S. Attorney's Office,").str[-1].str.strip()
+
+# clean and structure cells
+us_attorney_actions['State'] = us_attorney_actions[
+    'State'].str.replace(' †††', '')
+us_attorney_actions['State'] = us_attorney_actions[
+    'State'].str.replace(' ††', '')
+us_attorney_actions['State'] = us_attorney_actions[
+    'State'].str.replace('District of Idaho Boise', 'District of Idaho')
 
 # clean and structure cells for merge
 us_attorney['judicial_d'] = us_attorney['judicial_d'].str.replace(
     'District of District of Columbia', 'District of Columbia', regex=False
 )
 # group by to get action counts
-us_attorney_actions = us_attorney_actions.groupby('State').size().reset_index(name='Enforcement Actions')
+us_attorney_actions = us_attorney_actions.groupby(
+    'State').size().reset_index(name='Enforcement Actions')
 
 # only need 'judicial_d' and 'geometry' columns from us_attorney
 us_attorney_filtered = us_attorney[['judicial_d', 'geometry']]
 
 # merge data
-us_attorney_actions_merged = us_attorney_actions.merge(us_attorney_filtered, left_on='State', right_on='judicial_d', how='left')
+us_attorney_actions_merged = us_attorney_actions.merge(
+    us_attorney_filtered, left_on='State', right_on='judicial_d', how='left')
 
-```
-```{python}
-#turn to geodataframe
-us_attorney_actions_merged = gpd.GeoDataFrame(us_attorney_actions_merged, geometry='geometry')
-#plot
+# turn to geodataframe
+us_attorney_actions_merged = gpd.GeoDataFrame(
+    us_attorney_actions_merged, geometry='geometry')
+
+# plot
 fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-us_attorney_actions_merged.plot(column='Enforcement Actions', ax=ax, legend=True, cmap='Purples')
+us_attorney_actions_merged.plot(column='Enforcement Actions',
+                                ax=ax, legend=True, cmap='Purples')
 ax.set_title('Number of Enforcement Actions by District',
              fontdict={'fontsize': '12'})
-ax.set_xlim(-130, -65)  # Longitude limits for the contiguous U.S.
+ax.set_xlim(-130, -65)  # longitude limits for the contiguous U.S.
 ax.set_ylim(24, 50)
 plt.show()
-```
 
-Reference chatgpt for Cannot mask with non-boolean array containing NA / NaN values, and set limits when plotting.
+# ChatGPT reference for Error message: Cannot mask with non-boolean array containing
+# NA/NaN values, and for removing special symbols like ' †††' and setting limits 
+# when plotting.
+```
 
 
 ## Extra Credit
