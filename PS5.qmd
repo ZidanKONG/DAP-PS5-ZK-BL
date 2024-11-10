@@ -257,7 +257,6 @@ def enforcement_scraper(month, year):
     page_count = 0
     while url:
         page_count += 1
-        print(f'Fetching page {page_count}...')  # print current page number
 
         response = session.get(url)
         soup = BeautifulSoup(response.text, 'lxml')
@@ -319,11 +318,10 @@ def enforcement_scraper(month, year):
                 agencies.append(agency_text)
 
             # pause to avoid hitting the server too frequently
-            time.sleep(1)
+            time.sleep(0.2)
 
         # check if this page had no relevant actions after the target date
         if not page_has_relevant_actions:
-            print('No relevant actions found on this page. Ending scraping.')
             break
 
         # find the link to the next page
@@ -331,9 +329,7 @@ def enforcement_scraper(month, year):
         if next_page:
             next_link = next_page['href']
             url = urljoin(url, next_link)
-            print('Moving to next page...')
         else:
-            print('No next page found. Ending scraping.')
             break
 
     # create a DataFrame with the collected data
