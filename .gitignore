@@ -1,0 +1,10 @@
+# ignore all .DS_Store files
+.DS_Store
+
+# ignore the CSV files
+enforcement_actions_2021_1.csv
+enforcement_actions_2023_1.csv
+
+# ignore the shapefile data folders
+cb_2018_us_state_500k
+US Attorney Districts Shapefile simplified_20241109
