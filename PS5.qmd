@@ -60,6 +60,7 @@ alt.renderers.enable("png")
 ### 1. Scraping (PARTNER 1)
 
 ```{python}
+# set the url
 url = 'https://oig.hhs.gov/fraud/enforcement/'
 # make a get request
 response = requests.get(url)
@@ -88,10 +89,11 @@ for action in soup.find_all('li', class_='usa-card card--list pep-card--minimal 
     categories.append(category)
 
     link_tag = action.find('a')
-    link = link_tag['href'] if link_tag else None
-    full_link = f'https://oig.hhs.gov{link}' if link and link.startswith(
-        '/') else link
-    links.append(full_link or 'N/A')
+    if link_tag and link_tag.get('href'):
+        link = 'https://oig.hhs.gov' + link_tag.get('href')
+    else:
+        link = 'N/A'
+    links.append(link)
 
 # create a DataFrame with the scraped data
 data = pd.DataFrame({
@@ -137,88 +139,84 @@ print(data.head())
 
 * a. Pseudo-Code (PARTNER 2)
 
+I will use a while loop since i am going to iterate page by page, i will break the loop if it does not meet the date condition. I will define the while loop to run based on if the url still exists.
+
 Define function enforcement_scraper(month, year):
-    
-    If year < 2013:
-        Print "Please restrict to year >= 2013."
-        Return None 
 
-    Create an empty list titles
-    Create an empty list dates
-    Create an empty list categories
-    Create an empty list links
-    Create an empty list agencies
+    IF year < 2013 THEN
+        PRINT "Please restrict to year >= 2013."
+        RETURN None
 
-    Set url to "https://oig.hhs.gov/fraud/enforcement/"
+    Create empty lists for later append:
+        titles = empty list
+        dates = empty list
+        categories = empty list
+        links = empty list
+        agencies = empty list
 
-    Set want_date afetr the input date
+    base_url = "https://oig.hhs.gov/fraud/enforcement/"
+    target_date = datetime of input
 
-    While True:
-        Get request to url
-        Parse the information using BeautifulSoup and store in name of 'soup'
+    session = requests.Session()
 
-        Find all 'li' elements with class "usa-card card--list pep-card--minimal mobile:grid-col-12" in soup
-        If no actions are found, Break the loop 
+    SET page_count = 0
 
-        For each action in actions:
-            
-            Find title_tag 
-            Get text else na
+    WHILE url:
+        page_count += 1
+        PRINT "Fetching page {page_count}..." for checking scraping process
 
-            Find date_tag
-            Get text else na
+        response = session.GET(url)
+        soup = BeautifulSoup(response.text, "lxml")
 
-            Find category_tag
-            Get text else na
+        actions = FIND all action items in soup
+        IF actions is empty
+            BREAK
 
-            Find link_tag
-            If link exists:
-                Format link as full_link
-            Else:
-                Append 'N/A' 
-            
+        valid_date_page = False
+
+        FOR EACH action find detail:
+            title, date, category, full_link based on previous questions
+
             try:
-                strip date scraped from above
-                if stripped_date , want_date:
-                    continue
-            except ValueError:
-                continue
+                action_date = parse_action_date(date)
 
-            Append title
-            Append date
-            Append category
-            Append link
+                IF action_date < target_date THEN
+                    CONTINUE
+                ELSE
+                    valid_date_page = True
 
-            Get request to links in full_link
-            Parse the information using BeautifulSoup
-            Find the element with text "Agency:"
-            If agency element is found:
-                Get agency name, then append to agencies list
-            Else:
-                Append 'N/A' to agencies list
-            
-            Wait for 1 second
+            APPEND title
+            APPEND date
+            APPEND category 
+            APPEND full_link OR "N/A"
 
-        Find next page link in soup
-        If next page link is found:
-            Update url with the next page URL
-        Else:
-            Break the loop 
+            agency_text = fetch_agency_details(session, full_link)
+            APPEND agency_text TO agencies
 
-    Create a DataFrame data with columns:
-        'Title': titles
-        'Date': dates
-        'Category': categories
-        'Link': links
-        'Agency': agencies
+            SLEEP for 1 seconds
 
-    Set filename as “enforcement_actions_ year_month.csv”
-    Save data to filename without the index column
+        IF valid_date_page IS False THEN
+            PRINT "No relevant actions found on this page. Ending scraping."
+            BREAK
 
-    Return data
+        url = find_next_page_url(soup, base_url)
+        IF url IS NOT None THEN
+            Update url to next page
+            PRINT "Moving to next page..."
+        ELSE
+            PRINT "No next page found. Ending scraping."
+            BREAK out of the loop
 
 
- Refenrenicng for understanding Pseudo-Code
+    data = pd.DataFrame(titles, dates, categories, links, agencies)
+    filename = "enforcement_actions_{year}_{month}.csv"
+    SAVE data TO CSV file named filename WITHOUT index
+    PRINT "Data saved to {filename}"
+
+    RETURN data
+
+ Referencing for understanding Pseudo-Code,https://builtin.com/data-science/pseudocode
+
 
 * b. Create Dynamic Scraper (PARTNER 2)
 
@@ -226,10 +224,10 @@ Define function enforcement_scraper(month, year):
 def enforcement_scraper(month, year):
     # check if the input year is valid
     if year < 2013:
-        print('Please restrict to year >= 2013.')
+        print("Please restrict to year >= 2013.")
         return None
 
-    # create empty lists to store data
+    # initialize lists to store data
     titles = []
     dates = []
     categories = []
@@ -238,281 +236,107 @@ def enforcement_scraper(month, year):
 
     # define the base URL
     url = "https://oig.hhs.gov/fraud/enforcement/"
-
-    # want date to filter actions date
     target_date = datetime(year, month, 1)
 
-    # Loop through pages until no more pages are found
-    while url:
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, 'lxml')
+    # set up a requests session for efficiency
+    session = requests.Session()
 
-        actions = soup.find_all('li', class_='usa-card card--list pep-card--minimal mobile:grid-col-12')
+    # loop through pages until no more pages are found
+    page_count = 0
+    while url:
+        page_count += 1
+        print(f"Fetching page {page_count}...")  # print the current page number
+
+        response = session.get(url)
+        soup = BeautifulSoup(response.text, "lxml")
+
+        # find all actions on the page
+        actions = soup.find_all("li", class_="usa-card card--list pep-card--minimal mobile:grid-col-12")
         if not actions:
             break
 
-        for action in actions:
-            # Extract title, date, category, and link for each action
-            title_tag = action.find('h2', class_='usa-card__heading')
-            title = title_tag.text.strip() if title_tag else 'N/A'
+        # flag to check if all actions on the page are before the target date
+        page_has_relevant_actions = False
 
-            date_tag = action.find('span', class_='text-base-dark padding-right-105')
-            date = date_tag.text.strip() if date_tag else 'N/A'
+        for action in actions:
+            # extract title, date, category, and link for each action
+            title_tag = action.find("h2", class_="usa-card__heading")
+            title = title_tag.text.strip() if title_tag else "N/A"
+
+            date_tag = action.find("span", class_="text-base-dark padding-right-105")
+            date_text = date_tag.text.strip() if date_tag else "N/A"
 
             category_tag = action.find(
-                'li', class_='display-inline-block usa-tag text-no-lowercase text-base-darkest bg-base-lightest margin-right-1')
-            category = category_tag.text.strip() if category_tag else 'N/A'
+                "li", class_="display-inline-block usa-tag text-no-lowercase text-base-darkest bg-base-lightest margin-right-1"
+            )
+            category = category_tag.text.strip() if category_tag else "N/A"
 
-            link_tag = action.find('a')
-            link = link_tag['href'] if link_tag else None
-            full_link = f'https://oig.hhs.gov{link}' if link and link.startswith('/') else link
+            link_tag = action.find("a")
+            link = link_tag["href"] if link_tag else None
+            full_link = f'https://oig.hhs.gov{link}' if link and link.startswith("/") else link
 
-            # Get the date and filter based on want_date
+            # parse the action date and filter based on target_date
             try:
-                action_date = datetime.strptime(date, '%B %d, %Y')
+                action_date = datetime.strptime(date_text, "%B %d, %Y")
                 if action_date < target_date:
-                    continue 
+                    continue  # skip actions before the target date
+                else:
+                    page_has_relevant_actions = True  # found at least one relevant action on this page
             except ValueError:
-                continue  
+                continue  # skip actions with invalid date format
 
-            # Append the filtered data
+            # append data for actions that meet the date criteria
             titles.append(title)
-            dates.append(date)
+            dates.append(date_text)
             categories.append(category)
-            links.append(full_link or 'N/A')
+            links.append(full_link or "N/A")
 
-            # Request the enforcement action detail page to find the agency name
-            action_response = requests.get(full_link)
-            action_soup = BeautifulSoup(action_response.text, 'lxml')
-            agency_tag = action_soup.find('span', text='Agency:')
-            if agency_tag:
-                agency_text = agency_tag.find_next_sibling(text=True).strip('" ').split(':')[-1].strip()
-            else:
-                agency_text = 'N/A'
-            agencies.append(agency_text)
+            # if agency details are critical, make an additional request here
+            if full_link:
+                action_response = session.get(full_link)
+                action_soup = BeautifulSoup(action_response.text, "lxml")
+                agency_tag = action_soup.find("span", string="Agency:")
+                agency_text = (
+                    agency_tag.find_next_sibling(string=True).strip('" ').split(":")[-1].strip()
+                    if agency_tag else "N/A"
+                )
+                agencies.append(agency_text)
 
-            # Pause to avoid hitting the server too frequently
+            # pause to avoid hitting the server too frequently
             time.sleep(1)
 
-        # Find the link to the next page using the `page` class
-        next_page = soup.find('li', class_='page')
+        # check if this page had no relevant actions after the target date
+        if not page_has_relevant_actions:
+            print("No relevant actions found on this page. Ending scraping.")
+            break
+
+        # find the link to the next page
+        next_page = soup.find("a", class_="pagination-next")
         if next_page:
-            next_link = next_page.find('a')['href']
-            url = urljoin('https://oig.hhs.gov/', next_link)
+            next_link = next_page["href"]
+            url = urljoin(url, next_link)
+            print("Moving to next page...")
         else:
-            url = None
+            print("No next page found. Ending scraping.")
+            break
 
-    # Create a DataFrame with the filtered data
+    # create a DataFrame with the collected data
     data = pd.DataFrame({
-        'Title': titles,
-        'Date': dates,
-        'Category': categories,
-        'Link': links,
-        'Agency': agencies
+        "Title": titles,
+        "Date": dates,
+        "Category": categories,
+        "Link": links,
+        "Agency": agencies
     })
 
-    # Save the DataFrame to a CSV file
-    filename = f'enforcement_actions_{year}_{month}.csv'
+    # save the DataFrame to a CSV file
+    filename = f"enforcement_actions_{year}_{month}.csv"
     data.to_csv(filename, index=False)
+    print(f"Data saved to {filename}")
 
     return data
 ```
 
-```{python}
-def enforcement_scraper(month, year):
-    if year < 2013:
-        print('Please restrict to year >= 2013.')
-        return None
-
-    base_url = "https://oig.hhs.gov/fraud/enforcement/"
-    titles = []
-    dates = []
-    categories = []
-    links = []
-    agencies = []
-
-    target_date = datetime(year, month, 1)
-
-    # Start with the first page (page=1)
-    page_number = 1
-    url = f"{base_url}?page={page_number}"
-
-    while url:  # Loop through pages until no more pages are found
-        print(f"Scraping page {page_number}...")  # Progress feedback
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, 'lxml')
-
-        # Loop through all enforcement actions on the current page
-        for action in soup.find_all('li', class_='usa-card card--list pep-card--minimal mobile:grid-col-12'):
-            title_tag = action.find('h2', class_='usa-card__heading')
-            title = title_tag.text.strip() if title_tag else 'N/A'
-            titles.append(title)
-
-            date_tag = action.find('span', class_='text-base-dark padding-right-105')
-            date = date_tag.text.strip() if date_tag else 'N/A'
-            try:
-                action_date = datetime.strptime(date, '%B %d, %Y')
-                if action_date < target_date:
-                    continue  # Skip actions older than the target date
-            except ValueError:
-                continue
-            dates.append(date)
-
-            category_tag = action.find('li', class_='display-inline-block usa-tag text-no-lowercase text-base-darkest bg-base-lightest margin-right-1')
-            category = category_tag.text.strip() if category_tag else 'N/A'
-            categories.append(category)
-
-            link_tag = action.find('a')
-            link = link_tag['href'] if link_tag else None
-            full_link = f'https://oig.hhs.gov{link}' if link and link.startswith('/') else link
-            links.append(full_link or 'N/A')
-
-        # Extract agency details for each action
-        for link in links:
-            action_response = requests.get(link)
-            action_soup = BeautifulSoup(action_response.text, 'lxml')
-            agency_tag = action_soup.find('span', text='Agency:')
-            if agency_tag:
-                agency_text = agency_tag.find_next_sibling(text=True).strip('" ').split(';')[-1].strip()
-            else:
-                agency_text = 'N/A'
-            agencies.append(agency_text)
-
-            time.sleep(1)  # Pause to avoid overwhelming the server
-
-        # Save data incrementally to CSV after each page
-        data = pd.DataFrame({
-            'Title': titles,
-            'Date': dates,
-            'Category': categories,
-            'Link': links,
-            'Agency': agencies
-        })
-        data.to_csv(f'enforcement_actions_{year}_{month}_page_{page_number}.csv', index=False)
-
-        # Reset lists for the next page
-        titles.clear()
-        dates.clear()
-        categories.clear()
-        links.clear()
-        agencies.clear()
-
-        # Extract the pagination section to find the next page
-        pagination = soup.find('ul', class_='pagination')
-        if pagination:
-            page_links = pagination.find_all('a', class_='pagination_link')
-            print(f"Pagination links: {[link.text.strip() for link in page_links]}")  # Debugging line
-
-            # Find the link to the next page
-            next_page_link = None
-            for page_link in page_links:
-                if page_link.text.strip() == str(page_number + 1):
-                    next_page_link = page_link
-                    break
-            
-            # Check if we found the next page link
-            if next_page_link:
-                page_number += 1
-                url = f"{base_url}{next_page_link['href']}"  # Construct the full URL for the next page
-                print(f"Next page URL: {url}")  # Debugging line
-            else:
-                url = None  # No next page found, exit the loop
-        else:
-            url = None  # Exit if no pagination container is found
-
-    # Return the total number of pages scraped
-    return f"Scraped data from {page_number} pages."
-```
-
-```{python}
-def enforcement_scraper(month, year):
-    # check if the input year is valid
-    if year < 2013:
-        print('Please restrict to year >= 2013.')
-        return None
-
-    # define the base URL
-    url = "https://oig.hhs.gov/fraud/enforcement/"
-
-    # create empty lists to store data
-    titles = []
-    dates = []
-    categories = []
-    links = []
-    agencies = []
-
-    # want date to filter actions date
-    target_date = datetime(year, month, 1)
-
-    # Loop through pages until no more pages are found
-    while url:
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, 'lxml')
-
-        for action in  soup.find_all('li', class_='usa-card card--list pep-card--minimal mobile:grid-col-12'):
-            # Extract title, date, category, and link for each action
-            title_tag = action.find('h2', class_='usa-card__heading')
-            title = title_tag.text.strip() if title_tag else 'N/A'
-            titles.append(title)
-
-            date_tag = action.find('span', class_='text-base-dark padding-right-105')
-            date = date_tag.text.strip() if date_tag else 'N/A'
-            try:
-                action_date = datetime.strptime(date, '%B %d, %Y')
-                if action_date < target_date:
-                    continue
-            except ValueError:
-                continue
-            dates.append(date)
-
-            category_tag = action.find(
-                'li', class_='display-inline-block usa-tag text-no-lowercase text-base-darkest bg-base-lightest margin-right-1')
-            category = category_tag.text.strip() if category_tag else 'N/A'
-            categories.append(category)
-
-            link_tag = action.find('a')
-            link = link_tag['href'] if link_tag else None
-            full_link = f'https://oig.hhs.gov{link}' if link and link.startswith('/') else link
-            links.append(full_link or 'N/A')
-
-            for link in links:
-                action_response = requests.get(link)
-                action_soup = BeautifulSoup(action_response.text, 'lxml')
-                # locate the 'Agency:' label and extract the agency name by accessing the next sibling
-                agency_tag = action_soup.find('span', text='Agency:')
-                if agency_tag:
-                    agency_text = agency_tag.find_next_sibling(text=True).strip('" ').split(';')[-1].strip()
-                else:
-                    agency_text = 'N/A'
-
-                agencies.append(agency_text)
-                
-                time.sleep(1)
-
-    # Find the link to the next page using the `page` class
-    next_page = soup.find('li', class_='page')
-    if next_page:
-        next_link = next_page.find('a')['href']
-        url = urljoin('https://oig.hhs.gov/', next_link)
-    else:
-        url = None
-
-    # Create a DataFrame with the filtered data
-    data = pd.DataFrame({
-        'Title': titles,
-        'Date': dates,
-        'Category': categories,
-        'Link': links,
-        'Agency': agencies
-    })
-
-    # Save the DataFrame to a CSV file
-    filename = f'enforcement_actions_{year}_{month}.csv'
-    data.to_csv(filename, index=False)
-
-    return data
-
-```
 
 ```{python}
 # collect the enforcement actions since January 2023
@@ -520,7 +344,6 @@ data_2023 = enforcement_scraper(1, 2023)
 
 num_actions_2023 = len(data_2023)
 print(f'Total enforcement actions from January 2023: {num_actions_2023}')
-
 earliest_action_2023 = data_2023.sort_values(by='Date').iloc[0]
 print(f'Earliest enforcement action scraped: {earliest_action_2023}')
 ```
@@ -533,7 +356,6 @@ data_2021 = enforcement_scraper(1, 2021)
 
 num_actions_2021 = len(data_2021)
 print(f'Total enforcement actions from January 2021: {num_actions_2021}')
-
 earliest_action_2021 = data_2021.sort_values(by='Date').iloc[0]
 print(f'Earliest enforcement action scraped: {earliest_action_2021}')
 ```
@@ -543,8 +365,34 @@ print(f'Earliest enforcement action scraped: {earliest_action_2021}')
 ### 1. Plot the number of enforcement actions over time (PARTNER 2)
 
 ```{python}
+enforcement_actions_2021 = pd.read_csv('enforcement_actions_2021_1.csv') 
 
+# convert to datetime format
+enforcement_actions_2021['Date'] = pd.to_datetime(enforcement_actions_2021['Date'], format='%B %d, %Y')
+
+# extract 'Year-Month' for grouping
+enforcement_actions_2021['Year-Month'] = enforcement_actions_2021['Date'].dt.to_period('M')
+
+# convert 'Year-Month' to string for Altair compatibility
+enforcement_actions_2021['Year-Month'] = enforcement_actions_2021['Year-Month'].astype(str)
+
+# aggregate by Year-Month and count the number of enforcement actions
+enforcement_counts = enforcement_actions_2021.groupby('Year-Month').size().reset_index(name='Enforcement Actions')
+
+# plot the data using Altair
+chart = alt.Chart(enforcement_counts).mark_line().encode(
+    x='Year-Month:T', 
+    y='Enforcement Actions:Q', 
+    tooltip=['Year-Month:T', 'Enforcement Actions:Q']
+).properties(
+    title='Number of Enforcement Actions Over Time (Since January 2021)',
+    width=500,
+    height=300
+)
+
+chart.show()
 ```
+
 
 ### 2. Plot the number of enforcement actions categorized: (PARTNER 1)
 
