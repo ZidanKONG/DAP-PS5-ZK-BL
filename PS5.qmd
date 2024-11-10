@@ -399,6 +399,32 @@ chart.show()
 * based on "Criminal and Civil Actions" vs. "State Enforcement Agencies"
 
 ```{python}
+enforcement_actions_2021 = pd.read_csv('enforcement_actions_2021_1.csv') 
+#filter data
+enforcement_2category = enforcement_actions_2021[enforcement_actions_2021['Category'].isin(['Criminal and Civil Actions', 'State Enforcement Agencies'])]
+
+#structure date
+enforcement_2category['Date'] = pd.to_datetime(enforcement_2category['Date'], format='%B %d, %Y')
+
+# extract 'Year-Month' for grouping
+enforcement_2category['Year-Month'] = enforcement_2category['Date'].dt.to_period('M')
+
+# convert 'Year-Month' to string for Altair compatibility
+enforcement_2category['Year-Month'] = enforcement_2category['Year-Month'].astype(str)
+
+# Count the occurrences of each Category by Date
+enforcement_2category = enforcement_2category.groupby(['Date', 'Category']).size().reset_index(name='Count')
+# Create the Altair line chart
+alt.Chart(enforcement_2category).mark_line().encode(
+    x=alt.X('Date:T', axis=alt.Axis(format='%Y-%m', title='Date')),
+    y=alt.Y('Count:Q', title='Counts'),
+    color='Category:N',
+    tooltip=['Date:T', 'Category:N', 'Count:Q']
+).properties(
+    title='Enforcement Actions Over Time by 2 Categories',
+    width=600,
+    height=400
+)
 
 ```
 
