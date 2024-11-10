@@ -48,6 +48,8 @@ from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import geopandas as gpd
+import matplotlib.pyplot as plt
 
 import warnings 
 warnings.filterwarnings('ignore')
@@ -381,8 +383,8 @@ enforcement_counts = enforcement_actions_2021.groupby('Year-Month').size().reset
 
 # plot the data using Altair
 chart = alt.Chart(enforcement_counts).mark_line().encode(
-    x='Year-Month:T', 
-    y='Enforcement Actions:Q', 
+    x=alt.X('Year-Month:T', axis=alt.Axis(format='%Y-%m', title='Date')),  # Month-Year format
+    y=alt.Y('Enforcement Actions:Q', title='Number of Enforcement Actions'),
     tooltip=['Year-Month:T', 'Enforcement Actions:Q']
 ).properties(
     title='Number of Enforcement Actions Over Time (Since January 2021)',
@@ -399,39 +401,66 @@ chart.show()
 * based on "Criminal and Civil Actions" vs. "State Enforcement Agencies"
 
 ```{python}
-enforcement_actions_2021 = pd.read_csv('enforcement_actions_2021_1.csv') 
 #filter data
 enforcement_2category = enforcement_actions_2021[enforcement_actions_2021['Category'].isin(['Criminal and Civil Actions', 'State Enforcement Agencies'])]
 
-#structure date
-enforcement_2category['Date'] = pd.to_datetime(enforcement_2category['Date'], format='%B %d, %Y')
-
-# extract 'Year-Month' for grouping
-enforcement_2category['Year-Month'] = enforcement_2category['Date'].dt.to_period('M')
-
-# convert 'Year-Month' to string for Altair compatibility
-enforcement_2category['Year-Month'] = enforcement_2category['Year-Month'].astype(str)
-
 # Count the occurrences of each Category by Date
-enforcement_2category = enforcement_2category.groupby(['Date', 'Category']).size().reset_index(name='Count')
+enforcement_2category = enforcement_2category.groupby(['Year-Month', 'Category']).size().reset_index(name='Count')
+
 # Create the Altair line chart
-alt.Chart(enforcement_2category).mark_line().encode(
-    x=alt.X('Date:T', axis=alt.Axis(format='%Y-%m', title='Date')),
+chart_2 = alt.Chart(enforcement_2category).mark_line().encode(
+    x=alt.X('Year-Month:T', axis=alt.Axis(format='%Y-%m', title='Date')),
     y=alt.Y('Count:Q', title='Counts'),
     color='Category:N',
-    tooltip=['Date:T', 'Category:N', 'Count:Q']
+    tooltip=['Year-Month:T', 'Category:N', 'Count:Q']
 ).properties(
     title='Enforcement Actions Over Time by 2 Categories',
-    width=600,
-    height=400
+    width=500,
+    height=300
 )
 
+chart_2.show()
 ```
 
 * based on five topics
 
 ```{python}
+# filter to "Criminal and Civil Actions" category
+criminal_civil_actions = enforcement_actions_2021[enforcement_actions_2021['Category'] == 'Criminal and Civil Actions'].copy()
 
+# Define function to categorize actions based on the 'Title' column
+def categorize_topic(title):
+    title_lower = title.lower()  
+    if "healthcare" in title_lower or "health" in title_lower or "medicare" in title_lower or "medicaid" in title_lower:
+        return "Health Care Fraud"
+    elif "bank" in title_lower or "financial" in title_lower:
+        return "Financial Fraud"
+    elif "drug" in title_lower or "drugs" in title_lower or 'oxycodone' in title_lower or 'controlled substances' in title_lower:
+        return "Drug Enforcement"
+    elif "conspiracy" in title_lower or "bribery" in title_lower or "corruption" in title_lower:
+        return "Bribery/Corruption"
+    else:
+        return "Other"
+
+# Apply the categorization function to each row of the 'Title' column
+criminal_civil_actions['Topic'] = criminal_civil_actions['Title'].apply(categorize_topic)
+
+# Aggregate by Year-Month and Topic
+enforcement_counts = criminal_civil_actions.groupby(['Year-Month', 'Topic']).size().reset_index(name='Number of Enforcement Actions')
+
+# Plot the data using Altair
+chart_3 = alt.Chart(enforcement_counts).mark_line().encode(
+    x=alt.X('Year-Month:T', axis=alt.Axis(format='%Y-%m', title='Date')),  # Month-Year format
+    y=alt.Y('Number of Enforcement Actions:Q', title='Number of Enforcement Actions'),
+    color='Topic:N',
+    tooltip=['Year-Month:T', 'Topic:N', 'Number of Enforcement Actions:Q']
+).properties(
+    title='Number of Criminal and Civil Enforcement Actions by Topics Over Time',
+    width=500,
+    height=300
+)
+
+chart_3.show()
 ```
 
 ## Step 4: Create maps of enforcement activity
@@ -439,13 +468,149 @@ alt.Chart(enforcement_2category).mark_line().encode(
 ### 1. Map by State (PARTNER 1)
 
 ```{python}
+import geopandas as gpd
+import pandas as pd
+import matplotlib.pyplot as plt
 
+# Load the shapefiles
+us_state = gpd.read_file('/Users/boyalin/Documents/GitHub/ppha30538_ps/DAP-PS5-ZK-BL/cb_2018_us_state_500k/cb_2018_us_state_500k.shp')
+us_attorney = gpd.read_file('/Users/boyalin/Documents/GitHub/ppha30538_ps/DAP-PS5-ZK-BL/US Attorney Districts Shapefile simplified_20241109/geo_export_73b461cc-c808-4101-b111-3755d4c22267.shp')
+
+# Clean up the 'Agency' column in enforcement_actions_2021
+enforcement_actions_2021 = enforcement_actions_2021[enforcement_actions_2021['Agency'].notna()]
+enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace(' †††', '').str.strip()
+enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace(' ††', '').str.strip()
+enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace('District of Idaho Boise', 'District of Idaho').str.strip()
+
+# Filter for State-level actions and extract state names
+state_actions = enforcement_actions_2021[enforcement_actions_2021['Agency'].str.contains("State of")]
+state_actions['State'] = state_actions['Agency'].str.split("State of").str[-1].str.strip()
+
+# Aggregate by state
+state_enforcement_counts = state_actions.groupby('State').size().reset_index(name='Enforcement Actions')
+
+# Strip any leading/trailing spaces from both 'State' and 'NAME' columns
+state_enforcement_counts['State'] = state_enforcement_counts['State'].str.strip()
+us_state['NAME'] = us_state['NAME'].str.strip()
+
+# Select only the 'NAME' and 'geometry' columns from us_state
+us_state_filtered = us_state[['NAME', 'geometry']]
+
+# Merge the enforcement counts with the state geometries
+state_actions_merged = state_enforcement_counts.merge(us_state_filtered, left_on='State', right_on='NAME', how='left')
+
+# Check if merge worked correctly
+print("Merged Data Check:")
+print(state_actions_merged.head())
+
+# Plotting the choropleth
+fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+
+# Plot state-level enforcement actions as a choropleth map
+state_actions_merged.plot(column='Enforcement Actions', 
+                          cmap='coolwarm', ax=ax, 
+                          legend=True)
+
+# Set title and remove axes
+ax.set_title('State-level Enforcement Actions (2021)', fontsize=16)
+ax.set_axis_off()
+
+# Show the plot
+plt.show()
+
+```
+
+```{python}
+us_state = gpd.read_file('/Users/boyalin/Documents/GitHub/ppha30538_ps/DAP-PS5-ZK-BL/cb_2018_us_state_500k/cb_2018_us_state_500k.shp')
+
+us_attorney = gpd.read_file('/Users/boyalin/Documents/GitHub/ppha30538_ps/DAP-PS5-ZK-BL/US Attorney Districts Shapefile simplified_20241109/geo_export_73b461cc-c808-4101-b111-3755d4c22267.shp')
+
+# clean up the 'Agency' column in enforcement_actions_2021
+# remove rows where 'Agency' is NaN
+enforcement_actions_2021 = enforcement_actions_2021[enforcement_actions_2021['Agency'].notna()]
+enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace(' †††', '').str.strip()
+enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace(' ††', '').str.strip()
+enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace('District of Idaho Boise', 'District of Idaho').str.strip()
+
+# filter for State-level actions and extract state names
+state_actions = enforcement_actions_2021[enforcement_actions_2021['Agency'].str.contains("State of")]
+state_actions['State'] = state_actions['Agency'].str.split("State of").str[-1].str.strip()
+
+# aggregate by state
+state_enforcement_counts = state_actions.groupby('State').size().reset_index(name='Enforcement Actions')
+
+# select only the 'NAME' and 'geometry' columns from us_state
+us_state_filtered = us_state[['NAME', 'geometry']]
+
+# merge the enforcement counts with the state geometries
+state_actions_merged = state_enforcement_counts.merge(us_state_filtered, left_on='State', right_on='NAME', how='left')
+
+fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+state_actions_merged.plot(column='counts', ax=ax, legend=True)
+ax.set_title('Number of Hospitals per ZIP Code in Texas (2016)',
+             fontdict={'fontsize': '12'})
+plt.show()
+```
+
+```{python}
+state_actions_merged = gpd.GeoDataFrame(state_actions_merged, geometry='geometry')
+
+fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+state_actions_merged.plot(column='Enforcement Actions', ax=ax, legend=True, cmap='Purples')
+ax.set_title('Number of Enforcement Actions by State',
+             fontdict={'fontsize': '12'})
+plt.show()
 ```
 
 
 ### 2. Map by District (PARTNER 2)
 
 ```{python}
+# Remove rows where 'Agency' is NaN
+enforcement_actions_2021 = enforcement_actions_2021[enforcement_actions_2021['Agency'].notna()]
+
+enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace(' †††', '').str.strip()
+
+enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace(' ††', '').str.strip()
+
+enforcement_actions_2021['Agency'] = enforcement_actions_2021['Agency'].str.replace('District of Idaho Boise', 'District of Idaho').str.strip()
+
+# Replace "District of District of Columbia" with "District of Columbia" in the 'judicial_d' column
+us_attorney['judicial_d'] = us_attorney['judicial_d'].str.replace(
+    'District of District of Columbia', 'District of Columbia', regex=False
+)
+
+# Filter for U.S. Attorney's Office actions and extract state names
+us_attorney_actions = enforcement_actions_2021[enforcement_actions_2021['Agency'].str.contains("U.S. Attorney's Office")]
+us_attorney_actions['State'] = us_attorney_actions['Agency'].str.split("U.S. Attorney's Office,").str[-1].str.strip()
+
+
+# Filter for State-level actions and extract state names
+state_actions = enforcement_actions_2021[enforcement_actions_2021['Agency'].str.contains("State of")]
+state_actions['State'] = state_actions['Agency'].str.split("State of").str[-1].str.strip()
+
+# Select only the 'judicial_d' and 'geometry' columns from us_attorney
+us_attorney_filtered = us_attorney[['judicial_d', 'geometry']]
+
+# Merge U.S. Attorney's Office actions with the filtered us_attorney GeoDataFrame
+us_attorney_actions_merged = us_attorney_actions.merge(us_attorney_filtered, left_on='State', right_on='judicial_d', how='left')
+
+# Select only the 'NAME' and 'geometry' columns from us_state
+us_state_filtered = us_state[['NAME', 'geometry']]
+
+# Merge State-level actions with the us_state GeoDataFrame
+state_actions_merged = state_actions.merge(us_state_filtered, left_on='State', right_on='NAME', how='left')
+
+# Plot U.S. Attorney's Office enforcement actions
+fig, ax = plt.subplots(1, 2, figsize=(18, 10))
+
+# U.S. Attorney's Office choropleth
+us_attorney_actions_merged.plot(column='Enforcement Actions', ax=ax[0], legend=True,
+                                legend_kwds={'label': "Number of Enforcement Actions (Federal)",
+                                             'orientation': "horizontal"},
+                                cmap='coolwarm')
+ax[0].set_title('U.S. Attorney\'s Office Enforcement Actions', fontsize=16)
+ax[0].set_axis_off()
 
 ```
 
