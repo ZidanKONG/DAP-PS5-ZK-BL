@@ -17,8 +17,8 @@ include-before-body:
       breaklines
     }
 output:
-  echo: false
-  eval: false
+  echo: True
+  eval: True
 ---
 
 **Due 11/9 at 5:00PM Central. Worth 100 points + 10 points extra credit.**
@@ -318,7 +318,7 @@ def enforcement_scraper(month, year):
                 agencies.append(agency_text)
 
             # pause to avoid hitting the server too frequently
-            time.sleep(0.2)
+            time.sleep(1)
 
         # check if this page had no relevant actions after the target date
         if not page_has_relevant_actions:
@@ -358,7 +358,8 @@ data_2023 = enforcement_scraper(1, 2023)
 
 num_actions_2023 = len(data_2023)
 print(f'Total number of enforcement actions from January 2023: {num_actions_2023}')
-earliest_action_2023 = data_2023.sort_values(by='Date').iloc[0]
+# directly access the last enforcement action
+earliest_action_2023 = data_2023.iloc[-1]
 print(f'Details of earliest enforcement action scraped: {earliest_action_2023}')
 ```
 
@@ -370,7 +371,7 @@ data_2021 = enforcement_scraper(1, 2021)
 
 num_actions_2021 = len(data_2021)
 print(f'Total number of enforcement actions from January 2021: {num_actions_2021}')
-earliest_action_2021 = data_2021.sort_values(by='Date').iloc[0]
+earliest_action_2021 = data_2021.iloc[-1]
 print(f'Details of earliest enforcement action scraped: {earliest_action_2021}')
 ```
 
